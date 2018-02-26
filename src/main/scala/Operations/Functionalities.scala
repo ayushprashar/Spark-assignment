@@ -20,12 +20,31 @@ case class Functionalities(customer: String,sales: String,splitToken: String) {
     }
   }
 
-  def getCustomerSales = {
-    val yearlyData = (saleData.groupBy(sale => (sale._1,sale._4))).map {
-      saleSummer => (saleSummer._)
+  def getCustomerSales: RDD[(Long, (String, String))] = {
+    val yearlyData = saleData.groupBy(sale => (sale._1, sale._4)).map {
+      saleSummer => (saleSummer._1._2,saleSummer._1._1,splitToken,splitToken,saleSummer._2.foldLeft(0.toLong)((sum,list)=>
+      sum + list._5))
     }
-    val monthlyData = saleData.groupBy(sale => (sale._1,sale._2,sale._4))
-    val dailyData = saleData.groupBy(sale => (sale._1,sale._2,sale._3,sale._4))
 
+    val monthlyData = saleData.groupBy(sale => (sale._1,sale._2,sale._4)).map {
+      saleSummer => (saleSummer._1._3,saleSummer._1._1,saleSummer._1._2,splitToken,
+        saleSummer._2.foldLeft(0.toLong)((sum,list)=> sum + list._5))
+    }
+
+    val dailyData = saleData.groupBy(sale => (sale._1,sale._2,sale._3,sale._4)).map {
+      saleSummer => (saleSummer._1._4,saleSummer._1._1,saleSummer._1._2,saleSummer._1._3,
+        saleSummer._2.foldLeft(0.toLong)((sum,list) => sum + list._5))
+    }
+
+    val yearlyKeyValue = yearlyData.map( data => (data._1,s"${data._2} ${data._3} ${data._4} ${data._5}"))
+    val monthlyKeyValue = monthlyData.map( data => (data._1,s"${data._2} ${data._3} ${data._4} ${data._5}"))
+    val dailyKeyValue = dailyData.map( data => (data._1,s"${data._2} ${data._3} ${data._4} ${data._5}"))
+
+    customerData.join(yearlyKeyValue) ++ customerData.join(monthlyKeyValue) ++ customerData.join(dailyKeyValue)
+  }
+
+  def result(domain: RDD[(Long,(String,String))]): Unit = {
+    val modifiedResult = domain.map (res => res._2._1 + res._2._1).sortBy( x => x)
+    modifiedResult.repartition(1).saveAsTextFile("./finalCopy")
   }
 }
